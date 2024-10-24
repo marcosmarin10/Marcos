@@ -1,0 +1,39 @@
+---
+title: "Intermedia 1 Programación avanzada"
+output: html_notebook
+---
+
+Importamos el dataset elegido.
+
+```{r}
+car_data <- read.csv(file.choose())
+```
+
+En el dataset elegido, encontramos el precio en rupias, por lo que usamos exchange para cambiarlo a euros, para ello vemos la comparativa de precio entre rupias y euros.
+
+```{r}
+exchange_rate <- 90
+car_data$Price <- round(car_data$Price / exchange_rate)
+head(car_data)
+```
+
+Por mejorar un poco el dataset, he creado una columna llamada antigüedad, para poder ver cuantos años tiene cada vehículo de forma más sencilla, lo hemos hecho asi:
+
+```{r}
+año_actual <- 2024
+car_data$Antigüedad <- año_actual - car_data$Year
+head(car_data[,c("Make","Year", "Antigüedad")])
+```
+
+Realizamos un estudio de cada una de las marcas de coches, para realizar el precio medio de las diferentes marcas del dataset:
+
+```{r}
+library(dplyr)
+
+precio_promedio_marca <- car_data %>%
+  group_by(Make) %>%
+  summarize(Precio_Promedio = mean(Price, na.rm = TRUE))
+
+print(precio_promedio_marca)
+
+```
