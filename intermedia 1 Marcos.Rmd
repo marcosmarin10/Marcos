@@ -3,11 +3,28 @@ title: "Intermedia 1 Programación avanzada"
 output: html_notebook
 ---
 
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+```
+
 Importamos el dataset elegido.
 
 ```{r}
 car_data <- read.csv(file.choose())
 ```
+
+Vemos la cantidad de nulls que encontramos en nuestro Dataset
+
+```{r}
+
+null_counts <- sapply(car_data, function(x) sum(is.na(x)))
+print(null_counts)
+
+```
+
+En la mayoría de las columnas, no encontramos null, y en aquellas que si tenemos, no hay los suficientes como para decidir eliminar dicha columna, por lo que de momento dejaremos el data set como está.
 
 En el dataset elegido, encontramos el precio en rupias, por lo que usamos exchange para cambiarlo a euros, para ello vemos la comparativa de precio entre rupias y euros.
 
@@ -17,7 +34,7 @@ car_data$Price <- round(car_data$Price / exchange_rate)
 head(car_data)
 ```
 
-Por mejorar un poco el dataset, he creado una columna llamada antigüedad, para poder ver cuantos años tiene cada vehículo de forma más sencilla, lo hemos hecho asi:
+Por mejorar un poco el dataset, he creado una columna llamada antigüedad, para poder ver cuántos años tiene cada vehículo de forma más sencilla.
 
 ```{r}
 año_actual <- 2024
@@ -25,10 +42,25 @@ car_data$Antigüedad <- año_actual - car_data$Year
 head(car_data[,c("Make","Year", "Antigüedad")])
 ```
 
-Realizamos un estudio de cada una de las marcas de coches, para realizar el precio medio de las diferentes marcas del dataset:
+Vemos los valores atípicos de las dos columnas más relevantes del Dataset, como son el precio y los kilómetros de cada coche.
 
 ```{r}
-library(dplyr)
+
+ggplot(car_data, aes(y = Price)) +
+  geom_boxplot(fill = "skyblue", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = dollar) +
+  labs(title = "Valores atípicos", y = "Precio") +
+  theme_minimal()
+
+ggplot(car_data, aes(y = Kilometer)) +
+  geom_boxplot(fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(title = "Valores atípicos", y = "Kilómetros") +
+  theme_minimal()
+```
+
+Realizamos un estudio de cada una de las marcas de coches, para realizar el precio medio de las diferentes marcas del dataset.
+
+```{r}
 
 precio_promedio_marca <- car_data %>%
   group_by(Make) %>%
@@ -37,3 +69,63 @@ precio_promedio_marca <- car_data %>%
 print(precio_promedio_marca)
 
 ```
+
+He realizado una distribución por años, para ver de forma gráfica el número de coches que tenemos por año de antigüedad.
+
+```{r}
+
+ggplot(car_data, aes(x = Year)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black", alpha = 0.7) +
+  scale_x_continuous(breaks = seq(min(car_data$Year, na.rm = TRUE), max(car_data$Year, na.rm = TRUE), by = 3)) +
+  labs(title = "Distribución por años", x = "Año", y = "Cantidad de coches") +
+  theme_minimal()
+
+```
+
+Realizamos la distribución por precio, de forma que podemos ver cuantos coches encontramos por cada rango de precio.
+
+```{r}
+
+ggplot(car_data, aes(x = Price)) +
+  geom_histogram(binwidth = 5000, fill = "blue", color = "black", alpha = 0.7) +
+  scale_x_continuous(labels = dollar)+
+  labs(title = "Distribución por precio", x = "Precio", y = "Cantidad de coches") +
+  theme_minimal()
+```
+
+Para realizar un mejor análisis mostraremos los coches que se encuentren en el rango de precio (0-30.000\$) ya que es donde se posicionan la mayoría. De esta forma podremos ver cuales son los precios sobre los que oscila la mayoría de automóviles.
+
+```{r}
+
+ggplot(car_data, aes(x = Price)) +
+  geom_histogram(binwidth = 1000, fill = "orange", color = "black", alpha = 0.5) +
+  scale_x_continuous(labels = dollar, limits = c(0, 30000), breaks = seq(0, 30000, by = 3000)) +
+  labs(title = "Distribución por precio", x = "Precio", y = "Cantidad de coches") +
+  theme_minimal()
+
+```
+
+Viendo este gráfico podemos ver claramente que la mayoría de los coches se encuentran en el rango de 3.000\$ a unos 7.000\$
+
+Modelo de predicción del precio, realizamos un modelo en el cual compare el precio real con la predicción, la predicción consistirá en realizar una evaluación de como de relacionales son las características de un coche, para establecer su precio, lo normal sería que en los coches con un precio elevado sea más dificil de predecir, ya que es probable que simplemente con una variación en la potencia del coche, o en el cilindraje, veamos un aumento considerable del precio.
+
+```{r}
+
+comparison <- data.frame(Actual = test_data$Price, Predicted = predictions)
+
+ggplot(comparison, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  scale_x_continuous(labels = dollar) +  
+  scale_y_continuous(labels = dollar) +  
+  labs(title = "Predicciones vs. Precios Reales",
+       x = "Precio Real",
+       y = "Predicciones") +
+  theme_minimal()
+
+
+```
+
+Cada punto azul representa un coche, su posición en el gráfico surge de comparar la predicción con el real. Si el modelo ha predecido bien el precio de un coche, el punto azul debería estar cerca de la línea roja. Cuanto más cerca estén los puntos de la línea, mejor está funcionando el modelo.
+
+La mayoría de los puntos se encuentran cerca de la línea en el rango de precios bajos, más o menos hasta los 40.000\$, por lo que el modelo predice bastante bien los precios en ese rango de precio, sin embargo según va aumentando el precio, los puntos se alejan de la línea, lo cual nos dice que al modelo le cuesta más predecir con precisión los precios más altos.
