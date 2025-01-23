@@ -1,0 +1,558 @@
+---
+title: "AB FINAL PROGRAMACIÓN AVANZADA"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(tidyverse)  
+```
+
+## INTRODUCCIÓN
+
+El análisis presentado tiene como objetivo principal estudiar las características de los automóviles en el mercado y su relación con el precio de venta. A través del uso de modelos predictivos, buscamos identificar patrones y tendencias que permitan estimar el precio de un vehículo en función de atributos como el año de fabricación, kilometraje, tipo de combustible, transmisión, capacidad de motor, entre otros. Este trabajo no solo pretende evaluar la precisión del modelo en sus predicciones, sino también proporcionar una herramienta útil para compradores, vendedores y analistas del sector automotriz. A medida que avanzamos, el análisis se enfocará en validar la relevancia de las variables seleccionadas, optimizar el modelo predictivo y visualizar los resultados de manera clara y comprensible para facilitar la toma de decisiones informadas.
+
+### ANÁLISIS DE LAS VARIABLES Y ELECCIÓN DEL DATASET
+
+El dataset incluye diversas variables que describen las características clave de los automóviles y su impacto en el precio.
+
+-   La ***marca*** identifica el fabricante del vehículo, como Toyota o Hyundai, lo que influye en el precio debido a la percepción de calidad, fiabilidad y prestigio asociada a la marca.
+
+-   El ***modelo*** especifica la línea específica del automóvil dentro de la marca, como Corolla o Civic, aportando detalles importantes sobre las características y el segmento del vehículo.
+
+-   El ***precio*** es la variable dependiente que se busca predecir. Representa el valor de venta del automóvil, determinado por una combinación de las demás características.
+
+-   El ***año*** indica el momento de fabricación del automóvil y afecta directamente su depreciación. Automóviles más recientes tienden a tener un precio mayor debido a la percepción de modernidad y menor desgaste.
+
+-   El ***kilometraje*** mide la distancia total recorrida por el automóvil. Este valor suele correlacionarse con el nivel de desgaste, donde vehículos con menor kilometraje generalmente tienen precios más altos.
+
+-   El ***tipo de combustible*** describe el tipo de energía que utiliza el vehículo, como gasolina, diésel, eléctrico o híbrido. Esto influye en el precio debido a las diferencias en costos operativos y eficiencia.
+
+-   La ***transmisión*** especifica si el vehículo utiliza un sistema automático o manual. Esto puede afectar el precio dependiendo de las preferencias de los compradores en diferentes regiones.
+
+-   La ***ubicación*** muestra la región o ciudad donde se encuentra el automóvil, lo que puede influir en el precio debido a la oferta y la demanda del mercado local.
+
+-   El ***color*** del vehículo describe su acabado exterior, un aspecto que tiene un impacto menor en el precio, aunque puede depender de las tendencias y preferencias del mercado.
+
+-   El ***número de propietarios*** anteriores refleja el historial del automóvil. Vehículos con un único propietario suelen tener precios más altos debido a la percepción de menor desgaste.
+
+-   El ***tipo de vendedor*** indica si el automóvil es vendido por un particular, un concesionario o una entidad corporativa. Esto influye en la confianza del comprador y, en consecuencia, en el precio.
+
+-   El ***motor*** describe la capacidad del motor en centímetros cúbicos, lo que afecta directamente el rendimiento y, en algunos casos, el precio del vehículo.
+
+-   La ***potencia máxima*** indica la fuerza máxima que el motor puede generar. Es un indicador importante del rendimiento del vehículo, especialmente en modelos orientados a un mejor desempeño.
+
+-   El ***torque máximo*** refleja la fuerza de rotación que puede producir el motor, lo que afecta la aceleración y la capacidad de carga del vehículo.
+
+-   El ***sistema de tracción*** describe si el automóvil utiliza tracción delantera, trasera o en las cuatro ruedas. Esto influye en el comportamiento del vehículo en diferentes tipos de terreno.
+
+-   Las ***dimensiones***, como longitud, ancho y altura, indican el tamaño del automóvil, lo que puede estar relacionado con su segmento y precio en el mercado.
+
+-   La ***capacidad de asientos*** define cuántos ocupantes puede acomodar el vehículo. Automóviles con mayor capacidad suelen ser más valorados para usos familiares o comerciales.
+
+-   La ***capacidad del tanque de combustible*** muestra la autonomía potencial del automóvil, un factor importante para compradores que buscan eficiencia en viajes largos.
+
+Este conjunto de variables proporciona una visión integral del automóvil, permitiendo analizar su relación con el precio y desarrollar modelos predictivos.
+
+## Importamos el dataset elegido.
+
+```{r}
+car_data <- read.csv(file.choose())
+```
+
+## Vemos la cantidad de nulls que encontramos en nuestro Dataset
+
+```{r}
+
+null_counts <- sapply(car_data, function(x) sum(is.na(x)))
+print(null_counts)
+
+car_data <- car_data %>% 
+  group_by(Make, Model) %>% 
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
+  ungroup()
+
+null_counts_after <- sapply(car_data, function(x) sum(is.na(x)))
+print(null_counts_after)
+
+
+```
+
+En la mayoría de las columnas, no encontramos null, y en aquellas que si tenemos, no hay los suficientes como para decidir eliminar dicha columna, por lo que en dichas columnas utilizando la media de las características correspondientes a vehículos de la misma marca y modelo. De esta forma los datos serán más completos.
+
+## Cambiamos la moneda de Rupias a Euros.
+
+En el dataset elegido, encontramos el precio en rupias, por lo que usamos exchange para cambiarlo a euros, para ello vemos la comparativa de precio entre rupias y euros.
+
+```{r}
+exchange_rate <- 90
+car_data$Price <- round(car_data$Price / exchange_rate)
+head(car_data)
+```
+
+## Antigüedad.
+
+Por mejorar un poco el dataset, he creado una columna llamada antigüedad, para poder ver cuántos años tiene cada vehículo de forma más sencilla.
+
+```{r}
+año_actual <- 2024
+car_data$Antigüedad <- año_actual - car_data$Year
+head(car_data[,c("Make","Year", "Antigüedad")])
+```
+
+## Valores atípicos
+
+Identificamos y analizamos los valores atípicos en la variable "Precio" mediante el uso del IQR:
+
+```{r}
+
+q1 <- quantile(car_data$Price, 0.25)
+q3 <- quantile(car_data$Price, 0.75)
+iqr <- q3 - q1 # Calculamos el rango intercuartílico (IQR), que es la diferencia entre Q3 y Q1.
+lower_bound <- q1 - 1.5 * iqr
+upper_bound <- q3 + 1.5 * iqr
+
+outliers <- car_data %>% filter(Price < lower_bound | Price > upper_bound)
+outliers_summary <- nrow(outliers)
+outliers_percentage <- (outliers_summary / nrow(car_data)) * 100 # Calculamos el porcentaje de valores atípicos con respecto al total de datos.
+
+cat("Valores atípicos detectados:", outliers_summary, "(", round(outliers_percentage, 2), "%)\n") # Imprimimos en consola el número y porcentaje de valores atípicos detectados.
+
+clean_data <- car_data %>% filter(Price >= lower_bound & Price <= upper_bound)# Creamos un nuevo conjunto de datos 'clean_data' que excluye los valores atípicos, manteniendo solo aquellos dentro de los límites.
+summary(clean_data$Price)
+
+
+
+```
+
+Los **valores atípicos detectados** en representan el 10.44% de los datos y se desvían significativamente de la mayoría. Estos valores son importantes porque:
+
+1.  **Calidad del análisis**: Permiten identificar errores o inconsistencias en los datos, lo que asegura que los resultados sean más fiables.
+
+2.  **Impacto en el modelo**: Los valores atípicos pueden influir desproporcionadamente en métricas como la media y los coeficientes del modelo predictivo, reduciendo la precisión.
+
+3.  **Información valiosa**: Algunos valores atípicos pueden representar casos únicos, como vehículos de lujo o con características excepcionales, que merecen un análisis detallado.
+
+4.  **Decisiones estratégicas**: Ayudan a decidir si estos valores deben ser eliminados, ajustados o tratados de manera separada, dependiendo de su relevancia en el análisis.
+
+En resumen, analizar los valores atípicos asegura un modelo más robusto y una interpretación más precisa de los datos
+
+## Mostramos si existe relación entre el precio y la antigüedad.
+
+Realizar un análisis entre el **precio** y la **antigüedad** de los vehículos (generalmente representada por el año de fabricación) es crucial porque:
+
+1.  **Evaluar la depreciación**: La antigüedad es uno de los factores más importantes que afectan el precio de un vehículo. Analizar esta relación permite cuantificar cómo el valor disminuye con el tiempo.
+
+2.  **Identificar tendencias del mercado**: Este análisis ayuda a entender cómo diferentes modelos o marcas pierden valor con los años, revelando patrones específicos en el mercado automotriz.
+
+3.  **Mejorar el modelo predictivo**: Incorporar la antigüedad como una variable en el modelo mejora la capacidad de predecir el precio de manera precisa, ya que es un factor directamente relacionado.
+
+4.  **Distinguir vehículos excepcionales**: Identificar casos donde vehículos antiguos tienen precios altos puede señalar autos clásicos, de colección o con características únicas.
+
+5.  **Optimizar la toma de decisiones**: Para compradores o vendedores, entender esta relación permite valorar correctamente un vehículo, evitando sobreprecios o ventas a valores por debajo del mercado.
+
+    El análisis entre precio y antigüedad proporciona insights fundamentales sobre la depreciación y el comportamiento del mercado, fortaleciendo tanto el análisis como la toma de decisiones informadas.
+
+```{r}
+ ggplot(car_data, aes(x = Antigüedad, y = Price)) +  # Creamos un gráfico de dispersión donde 'Antigüedad' está en el eje X y 'Price' en el eje Y.
+  geom_point(alpha = 0.6, color = "blue") + 
+  geom_smooth(method = "lm", color = "red", se = FALSE) + 
+  scale_y_continuous(labels = scales::dollar_format(prefix = "€", big.mark = ",")) + labs(title = "Relación entre antigüedad y precio", x = "Antigüedad (años)", y = "Precio (EUR)") + theme_minimal()  
+
+```
+
+Como podemos apreciar, los vehículos pierden el valor de forma significativa a medida que pasan los años en la gran mayoría de los casos. En otros muchos casos la antigüedad no interviene como de normal, y su valor depende de otro tipo de características. Nuestro dataset, la mayoría de coches que muestra son relativamente modernos, en caso de que hubiesen habido coches antigüos y 'exclusivos' (los cuáles suelen tener un valor elevado simplemente por sus pocas unidades y por puro coleccionismo), en ese caso, encontraríamos puntos en la parte superior derecha.
+
+## Precio de las distintas marcas.
+
+Realizamos un estudio de cada una de las marcas de coches, para realizar el precio medio de las diferentes marcas del dataset.
+
+```{r}
+
+precio_promedio_marca <- car_data %>%
+  group_by(Make) %>%
+  summarize(Precio_Promedio = mean(Price, na.rm = TRUE))
+
+print(precio_promedio_marca)
+
+```
+
+El análisis del precio promedio por marca te ayuda a entender cómo se posicionan las marcas en el mercado: las marcas como Fiat con precios bajos apuntan a un público más amplio, mientras que marcas como Ferrari, con precios altos, se dirigen a un mercado de lujo.
+
+Este análisis nos puede servir para:
+
+1.  **Tomar decisiones informadas** sobre qué marcas ofrecer o recomendar.
+
+2.  **Crear estrategias de marketing** más dirigidas.
+
+3.  **Comparar la competencia** y ver cómo se posicionan.
+
+4.  **Optimizar inventarios** según la demanda de cada segmento de precio.
+
+## Distribución por años
+
+Distribuir los datos por años nos permite analizar la evolución del mercado y cómo el precio de los vehículos cambia con el tiempo. Esto ayuda a entender la depreciación, identificar tendencias y patrones, como años con mayor oferta o lanzamientos clave. Además, facilita segmentar el análisis para extraer conclusiones más claras sobre periodos específicos.
+
+```{r}
+
+ggplot(car_data, aes(x = Year)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black", alpha = 0.7) +
+  scale_x_continuous(breaks = seq(min(car_data$Year, na.rm = TRUE), max(car_data$Year, na.rm = TRUE), by = 3)) +
+  labs(title = "Distribución por años", x = "Año", y = "Cantidad de coches") +
+  theme_minimal()
+
+```
+
+## Distribución por precio
+
+Distribuir los datos por precio permite comprender cómo se agrupan los vehículos en diferentes rangos de valor, identificar patrones en el mercado y detectar extremos como modelos de lujo o de bajo costo. Esto ayuda a analizar la relación entre precio y otras variables, como características del vehículo o antigüedad, y facilita segmentar el mercado para obtener conclusiones más precisas.
+
+```{r}
+
+ggplot(car_data, aes(x = Price)) +
+  geom_histogram(binwidth = 1000, fill = "orange", color = "black", alpha = 0.5) +
+  scale_x_continuous(labels = dollar, breaks = seq(0, max(car_data$Price), by = 25000)) +
+  labs(title = "Distribución por precio", x = "Precio", y = "Cantidad de coches") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+La mayoría de los coches del dataset se encuentran en el rango de precio entre 3000 y 10000 porque este rango representa típicamente vehículos usados que aún mantienen un equilibrio entre calidad, funcionalidad y accesibilidad económica. Este rango es atractivo para una amplia gama de compradores, ya que incluye vehículos relativamente recientes, pero con suficiente depreciación para ser asequibles. Además, en muchos mercados automotrices, este rango coincide con la mayor demanda de consumidores que buscan una opción económica sin sacrificar demasiadas prestaciones.
+
+#### Modelo de predicción del precio
+
+El modelo de regresión lineal múltiple es una extensión de la regresión lineal simple que permite predecir una variable dependiente (en este caso, el precio) utilizando múltiples variables independientes (año, kilómetros, transmisión, etc.).
+
+1.  **Predicción de Precios**: Nos permite estimar el precio de un coche basado en sus características. Esto es útil para concesionarios, compradores y vendedores para determinar un precio justo.
+
+2.  **Análisis de Factores**: Ayuda a identificar qué características influyen más en el precio de un coche. Por ejemplo, podríamos descubrir que el kilometraje tiene un impacto mayor en el precio que la capacidad de asientos.
+
+3.  **Toma de Decisiones**: Facilita la toma de decisiones informadas. Por ejemplo, un concesionario puede decidir qué tipo de coches adquirir para maximizar sus beneficios.
+
+Realizamos un modelo el cual compare el precio real con la predicción, la predicción consistirá en realizar una evaluación de como de relacionales son las características de un coche, para establecer su precio, lo normal sería que en los coches con un precio elevado sea más dificil de predecir, ya que su valor no suele ser proporcional con sus características, sino las unidades limitadas, el coleccionismo...
+
+```{r}
+linear_model <- lm(Price ~ Year + Kilometer + Transmission + Engine + Seating.Capacity, data = car_data)
+
+car_data$Predicted <- predict(linear_model, newdata = car_data)
+
+library(ggplot2)
+library(scales)  # Para formatear los ejes como moneda
+
+ggplot(car_data, aes(x = Price, y = Predicted)) +
+  geom_point(alpha = 0.6, color = "blue") +  # Puntos reales vs predichos
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +  
+  scale_x_continuous(labels = dollar_format(prefix = "€")) +
+  scale_y_continuous(labels = dollar_format(prefix = "€")) + 
+  labs(title = "Predicción de precios con regresión lineal múltiple",
+       x = "Precio Real",
+       y = "Precio Predicho") +
+  theme_minimal()
+```
+
+Como vemos que el ajuste no es completamente preciso,realizaremos algunos ajustes y algunos cambios para mejorarlo y poder comparar como es dicho gráfico antes y despues de tratarlo.
+
+## **R²**
+
+Primero calculamos el **R²** . El **R²** nos dice qué porcentaje de la variabilidad en el precio es explicado por las variables independientes (como el año y el kilometraje). Un **R² alto** indica que el modelo ajusta bien los datos. Además, el resumen del modelo nos muestra cuáles variables son significativas (p-valores) y cómo influyen en el precio, ayudándonos a validar y justificar el uso del modelo para predicciones.
+
+```{r}
+linear_model <- lm(Price ~ Year + Kilometer + Transmission + Engine + Seating.Capacity, data = car_data)
+
+# Resumen del modelo para obtener el R² y otros estadísticos
+model_summary <- summary(linear_model)
+print(model_summary)
+
+# Extraer el R²
+r_squared <- model_summary$r.squared
+cat("El R² del modelo es:", round(r_squared, 4), "\n")
+
+```
+
+El modelo tiene un **R² de 0.7948**, lo que indica que explica el **79.48% de la variabilidad en el precio** de los coches, un ajuste bueno pero no perfecto. Variables como **Year** (coches más nuevos son más caros), **Kilometer** (mayor kilometraje reduce el precio) y **TransmissionManual** (transmisión manual tiende a bajar el precio) son altamente significativas. Sin embargo, algunos tamaños de motor no tienen un impacto estadísticamente relevante y podrían eliminarse para optimizar el modelo.
+
+El **error estándar residual** es **12610**, lo que sugiere que las predicciones pueden variar en promedio ±12610 unidades respecto al precio real. El modelo global es estadísticamente significativo (**F-statistic = 65.52**, p \< 2.2e-16), indicando que al menos una variable independiente afecta significativamente al precio.
+
+## Calculamos los residuos
+
+Este análisis nos ayuda a verificar si los residuos del modelo están distribuidos de manera normal. Si los residuos son normales y no presentan patrones evidentes, podemos confiar más en la validez del modelo. Si no lo son, puede ser necesario ajustar el modelo, incluir más variables o explorar transformaciones de los datos.
+
+```{r}
+# Calcular los residuos
+residuals <- residuals(linear_model)
+
+# Graficar la distribución de los residuos
+library(ggplot2)
+ggplot(data.frame(residuals = residuals), aes(x = residuals)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red", size = 1) +
+  labs(title = "Distribución de los residuos",
+       x = "Residuos",
+       y = "Densidad") +
+  theme_minimal()
+
+```
+
+-   La mayor parte de los residuos están cerca de 0, lo que significa que el modelo está funcionando razonablemente bien para muchos coches.
+
+<!-- -->
+
+-   **Áreas de mejora**:
+
+    -   La presencia de colas largas y la falta de simetría perfecta sugieren que el modelo podría beneficiarse de:
+
+        -   Incluir variables adicionales relevantes (como la marca o categoría del coche).
+
+        -   Explorar transformaciones en las variables, como logaritmos o raíces cuadradas, para mejorar la normalidad de los residuos.
+
+        -   Identificar y manejar los errores grandes en las predicciones de ciertos coches, ya que podrían estar afectando los resultados del modelo.
+
+Este análisis muestra que el modelo es útil, pero tiene limitaciones para ciertos coches con características atípicas o no capturadas por las variables actuales.
+
+## Evaluación de los residuos y validación del modelo de regresión lineal
+
+Este código evalúa la validez del modelo de regresión lineal al analizar los **residuos** (diferencias entre los valores reales y predichos).
+
+Primero, elimina filas con valores faltantes en las variables clave para garantizar que el modelo use datos completos y consistentes. Luego, calcula los residuos y las predicciones del modelo.
+
+El gráfico generado muestra los residuos en función de los valores predichos. Esto nos permite verificar si los residuos están distribuidos uniformemente alrededor de 0 (línea roja). Una distribución aleatoria y sin patrones indica que el modelo cumple con los supuestos de homocedasticidad. Si aparecen patrones, colas largas o concentraciones fuera de lo esperado, podrían ser señales de problemas como relaciones no lineales, variables importantes faltantes o la presencia de outliers que afectan el modelo.
+
+```{r}
+car_data_clean <- car_data %>% 
+  filter(!is.na(Price), !is.na(Year), !is.na(Kilometer), 
+         !is.na(Transmission), !is.na(Engine), !is.na(Seating.Capacity))
+
+linear_model <- lm(Price ~ Year + Kilometer + Transmission + Engine + Seating.Capacity, data = car_data_clean)
+
+car_data_clean$residuals <- residuals(linear_model)
+car_data_clean$Predicted <- predict(linear_model, newdata = car_data_clean)
+
+ggplot(car_data_clean, aes(x = Predicted, y = residuals)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuos vs valores predichos",
+       x = "Precio Predicho",
+       y = "Residuos") +
+  theme_minimal()
+
+
+
+```
+
+Este gráfico muestra la relación entre los **valores predichos** (eje X) y los **residuos** (eje Y), que representan las diferencias entre los valores reales y las predicciones. La línea roja indica el nivel **0**, alrededor del cual los residuos deberían distribuirse de forma uniforme si el modelo es adecuado.
+
+1.  **Dispersión de los residuos**:
+
+```         
+-   La mayoría de los residuos están cerca de 0, lo que indica buenas predicciones para muchas observaciones.
+
+-   Sin embargo, hay **outliers** (puntos alejados) que representan errores grandes en ciertas predicciones.
+```
+
+2.  **Patrón en los residuos**:
+
+```         
+-   La dispersión es mayor para valores predichos bajos, formando un patrón en forma de embudo, lo que indica un problema de **heterocedasticidad** (variabilidad de los errores no constante).
+
+    El modelo funciona bien en general, pero muestra **outliers** y **heterocedasticidad**, lo que sugiere la necesidad de ajustes, como transformar variables o agregar más factores para mejorar la precisión en diferentes rangos de precios.
+```
+
+Por tanto vamos a realizar esos ajustes para mejorar dicha precisión:
+
+### Transformación logarítmica
+
+Aplicamos una transformación logarítmica a la variable Price para estabilizar la variabilidad de los residuos
+
+```{r}
+
+linear_model_log <- lm(log(Price) ~ Year + Kilometer + Transmission + Engine + Seating.Capacity, data = car_data_clean)
+
+summary(linear_model_log)
+
+car_data_clean$Predicted_log <- predict(linear_model_log, newdata = car_data_clean)
+car_data_clean$residuals_log <- residuals(linear_model_log)
+
+ggplot(car_data_clean, aes(x = Predicted_log, y = residuals_log)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuos vs valores predichos (log-transformado)",
+       x = "Precio Predicho (log)",
+       y = "Residuos") +
+  theme_minimal()
+
+```
+
+La transformación logarítmica nos ha permitido que el modelo lineal capture mejor las relaciones no lineales entre las variables dependientes e independientes. Esto resulta en predicciones más precisas.
+
+Al reducir la heterocedasticidad, el modelo cumple mejor los supuestos de la regresión lineal, lo que aumenta la fiabilidad de las conclusiones.
+
+En el gráfico anterior, los residuos mostraban un patrón de embudo (dispersión mayor para precios bajos). Después de la transformación logarítmica, la dispersión de los residuos es más uniforme a lo largo del rango de los valores predichos (eje X).
+
+Ahora podemos confiar más en las predicciones del modelo en todo el rango de precios, ya que la variabilidad de los errores no depende tanto de los valores predichos.
+
+### Tratar los outliers
+
+```{r}
+# Detectar outliers en Price
+Q1 <- quantile(car_data_clean$Price, 0.25)
+Q3 <- quantile(car_data_clean$Price, 0.75)
+IQR <- Q3 - Q1
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Filtrar datos para eliminar outliers
+car_data_no_outliers <- car_data_clean %>%
+  filter(Price >= lower_bound & Price <= upper_bound)
+
+# Ajustar el modelo sin outliers
+linear_model_no_outliers <- lm(Price ~ Year + Kilometer + Transmission + Engine + Seating.Capacity, data = car_data_no_outliers)
+summary(linear_model_no_outliers)
+
+```
+
+Al eliminar los outliers conseguimos:
+
+### 1. **Reducir el error estándar residual**:
+
+-   Antes: **12,610**
+
+-   Después: **4,117**
+
+    Esto significa que las predicciones del modelo ahora tienen un error promedio mucho menor respecto al precio real. Al eliminar los outliers, el modelo se ajusta mejor al rango central de los datos, evitando que los valores extremos afecten el ajuste general.
+
+### 2. **Mejora del R² (Coeficiente de determinación)**:
+
+-   **R²** antes: **0.7948** (79.48%)
+
+-   **R²** después: **0.8342** (83.42%)
+
+    El modelo ahora explica una mayor proporción de la variabilidad en el precio de los coches (un 83.42%), lo que refleja un ajuste más preciso.
+
+### 3. **Cambio en los residuos (más centrados)**:
+
+-   **Rango de los residuos**:
+
+    -   Antes: **[-69,313, 228,472]**
+
+    -   Después: **[-20,547, 23,702]**
+
+    El rango más estrecho indica que los errores en las predicciones están más contenidos, lo que mejora la fiabilidad de nuestro modelo
+
+### 4. **Significancia de las variables**:
+
+-   Variables como **Year**, **Kilometer**, y **TransmissionManual** siguen siendo altamente significativas (**p \< 0.001**), lo que confirma que estas características son los principales factores que afectan al precio.
+
+-   Algunas variables del motor que antes eran menos significativas ahora tienen un impacto más claro en el modelo, ya que los outliers dejaban "ruido" en los resultados.
+
+### 5. **F-statistic más alta**:
+
+-   Antes: **65.52**
+
+-   Después: **86.23**
+
+    Una F-statistic más alta indica que el modelo global es más robusto y significativo después de eliminar los valores atípicos.
+
+# Comparamos las gráficas
+
+Después de realizar los ajustes vamos a visualizar otras dos gráficas las cuales compararemos:
+
+-   Hemos tratado dos cosas: eliminación de Outliers y transformación logarítmica de la variable Price.
+
+    Por lo que vamos a comparar ambas graficas:
+
+### Sin Outliers
+
+```{r}
+# Usar los datos ajustados (sin outliers)
+car_data_no_outliers$Predicted <- predict(linear_model_no_outliers, newdata = car_data_no_outliers)
+
+# Gráfica sin outliers
+ggplot(car_data_no_outliers, aes(x = Price, y = Predicted)) +
+  geom_point(alpha = 0.6, color = "blue") +  # Puntos reales vs predichos
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +  
+  scale_x_continuous(labels = dollar_format(prefix = "€")) +
+  scale_y_continuous(labels = dollar_format(prefix = "€")) + 
+  labs(title = "Predicción de precios sin outliers",
+       x = "Precio Real",
+       y = "Precio Predicho") +
+  theme_minimal()
+
+```
+
+### Con transformación logarítmica
+
+```{r}
+# Gráfica para log(Price)
+ggplot(car_data_clean, aes(x = log(Price), y = Predicted_log)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Predicción de precios con transformación logarítmica",
+       x = "Log(Precio Real)",
+       y = "Log(Precio Predicho)") +
+  theme_minimal()
+
+```
+
+### Comparativa
+
+-   **Transformación logarítmica**:
+
+    -   **Ventajas**: Ajuste más preciso y consistente, elimina problemas como la heterocedasticidad.
+
+    -   **Desventajas**: Altera la escala de los precios, dificultando la interpretación directa de los resultados.
+
+-   **Sin outliers**:
+
+```         
+-   **Ventajas**: Conserva los precios en su escala original, respeta la integridad del dataset y mejora la precisión al eliminar valores extremos.
+
+-   **Desventajas**: Menor precisión en rangos altos de precios comparado con el enfoque logarítmico.
+```
+
+**Conclusión:**\
+Dado que es importante preservar la escala original de los precios y no alterar el dataset, me decanto por el modelo **sin outliers**. Este enfoque mejora la precisión de las predicciones mientras mantiene los datos fieles a su formato original, facilitando una interpretación más clara y realista.
+
+## Matriz de correlación
+
+El **modelo de correlación** se utiliza para analizar la relación entre dos o más variables numéricas. Su principal objetivo es identificar si existe una conexión lineal entre las variables y medir la fuerza y dirección de esa relación. El coeficiente de correlación, que varía entre -1 y 1, proporciona una medida cuantitativa de cómo una variable influye sobre otra.
+
+En el contexto de los precios de los automóviles, la matriz de correlación nos ayuda a entender cómo diversas características del coche, como el **año de fabricación**, **kilometraje**, **potencia del motor**, o **dimensiones**, se relacionan con el **precio**. Este análisis es fundamental para identificar qué factores son más relevantes en la determinación del precio y cómo interactúan entre sí, lo que puede ser útil para construir modelos predictivos y tomar decisiones basadas en datos.
+
+```{r}
+
+numerical_vars <- car_data %>% select_if(is.numeric)
+cor_matrix <- cor(numerical_vars, use = "complete.obs", method = "pearson")
+print(cor_matrix)
+
+library(ggplot2)
+library(reshape2)
+
+cor_matrix_melted <- melt(cor_matrix)
+
+ggplot(data = cor_matrix_melted, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(midpoint = 0, low = "blue", high = "red", mid = "white") +
+  theme_minimal() +
+  labs(title = "Mapa de calor de la matriz de correlación",
+       x = "Variables",
+       y = "Variables",
+       fill = "Correlación") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1))
+
+
+
+```
+
+El análisis de correlación muestra que el **precio** está fuertemente relacionado con el **año de fabricación** (más nuevo = más caro) y el **kilometraje** (más kilometraje = menor precio).
+
+El **tamaño** del vehículo, como la **capacidad de asientos**, **altura** y **anchura**, también están correlacionados entre sí, lo que refleja que las dimensiones influyen en la capacidad y el precio.
+
+Por otro lado, la **antigüedad** del coche tiene una **correlación negativa** con el **precio predicho**, lo que indica que los coches más viejos tienden a tener precios más bajos según el modelo predictivo. Sin embargo, la relación de las **variables secundarias** (como la marca o tipo de vendedor) con el precio parece ser más débil, sugiriendo que el modelo no las está considerando de manera tan significativa en sus predicciones.
+
+## Conclusión
+
+En resumen, el análisis muestra que el precio de los coches no siempre se ajusta de manera estricta a sus características principales, como el **año**, **kilometraje** o **potencia**. En algunos casos, marcas conocidas tienen precios que no se alinean con estas características, lo que sugiere que factores como el **prestigio de la marca**, **demanda del mercado** o **estrategias comerciales** juegan un papel importante en la fijación del precio.
+
+Por otro lado, en otros casos, el precio se ajusta mejor a lo que esperaríamos según las características del coche, especialmente cuando se trata de factores técnicos como el tamaño o la potencia del motor. Esto indica que, si bien las características del coche son clave, también hay otros factores secundarios que afectan el precio, como la marca y la percepción que el mercado tiene de ella.
